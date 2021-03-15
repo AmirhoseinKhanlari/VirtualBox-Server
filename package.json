@@ -1,0 +1,19 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "description": "RESTFul API for VirtualBox",
+  "main": "index.js",
+  "scripts": {
+    "start": "nodemon server.js"
+  },
+  "author": "Amirhosein Khanlari",
+  "license": "ISC",
+  "dependencies": {
+    "child-process-promise": "^2.2.1",
+    "express": "^4.17.1",
+    "nodemon": "^2.0.7",
+    "simple-ssh": "^1.0.0",
+    "vboxmanager": "0.0.1",
+    "virtualbox": "^1.1.1"
+  }
+}
