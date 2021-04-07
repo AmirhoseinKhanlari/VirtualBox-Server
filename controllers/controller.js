@@ -1,12 +1,32 @@
 var virtualbox = require('virtualbox');
-var app = require('./app')
+var app = require('../app')
 var SSH = require('simple-ssh');
-const {exec} = require('child_process')
-exports.getCommand = (req,res) => {
+const jwt = require('jsonwebtoken');
+const {exec} = require('child_process');
+let username = '';
+exports.checkPrivileges = (req,res,next) => {
+    const {token} = req.body;
+    jwt.verify(token,process.env.JWT_SECRET,(err,user)=> {
+        console.log(err)
+        if (err) return res.sendStatus(403);
+        username = user.id;
+        next();
+    })
+}
+exports.getCommand = (req,res,next) => {
     const body = req.body
     const response = res
-    if(req.body.command === "status"){
-        getStatus(body,res)
+    console.log(username)
+    let {vmName,sourceVmName,command} = req.body;
+    if(!sourceVmName) sourceVmName = "VM1"; 
+     if(username === 'user1' && (vmName!== 'VM1' || sourceVmName!=='VM1' || command ==='transfer')) {
+        return res.status(400).json({
+            status:"fail",
+            message:"User1 can only interact with VM1!" 
+        }); 
+        }
+    if(req.body.command === "status"){  
+        getStatus(body,res) 
     }
     if(req.body.command === "on"){
         powerOn(body,res)
@@ -31,18 +51,22 @@ exports.getCommand = (req,res) => {
     }
     if(req.body.command === "copyToVM"){
         copyToVM(body,res)
-    }
-
+    } 
 }
 
 const getStatus = (req,res) => {
     const vmName = req.vmName;
     if(!req.vmName){
-        res.status(200).json({
-            command:'status',
-            status:"HamE"
+            details:virtualbox.list((list_data,err)=> {
+                if(err) throw err
+                if (list_data) {
+                    res.status(200).json({
+                        command:"status",
+                        details:list_data
+                    })
+                  }
+            })
 
-        })
 
 
     }else {
@@ -61,7 +85,7 @@ const getStatus = (req,res) => {
             if(isRunning){
                 res.status(200).json({
                     command:'status',
-                    vmName:vmName,
+                    vmName:vmName, 
                     status:"On"
                 })
 
@@ -124,7 +148,7 @@ const powerOff = (req,res) => {
     })
 }
 const clone = (req,res) =>{
-    const sourceVmName = req.sourceVMName;
+    const sourceVmName = req.sourceVmName;
     const destVmName = req.destVmName;
     virtualbox.clone(sourceVmName, destVmName,(error)=> {
         if (error) throw error;
@@ -181,8 +205,8 @@ const setting = (req,res) => {
         res.status(200).json({
             command:"setting",
             vmName,
-            cpu:res.cpu,
-            ram:res.ram,
+            cpu:req.cpu,
+            ram:req.ram,
             status:"OK"
 
         })
@@ -193,12 +217,14 @@ const deleteVM = (req,res) => {
     const vmName = req.vmName
     exec(`vboxmanage unregistervm ${vmName} --delete`,(err,stdout,stderr) => {
         if(err) {
+
             throw err;
             return;
         }
         res.status(200).json({
             command:"delete",
-            vmName
+            vmName,
+            status:"OK"
         })
     })
 
@@ -213,15 +239,14 @@ const transferFile = (req,res) => {
     console.log(filename)
     exec(`vboxmanage guestcontrol ${originVm} copyfrom ${originPath} /Users/amirhoseinkhanlari/Downloads/${filename} --username amirkh --password Amir1377`,(err,stdout,stderr) => {
         if(err) {
-            throw err;
+            throw err; 
             return;
         }
         exec(`vboxmanage guestcontrol ${destVM} copyto /Users/amirhoseinkhanlari/Downloads/${filename} ${destPath} --username amirkh --password Amir1377`, (err,stdoutt,stderr) => {
                 res.status(200).json({
                     command:"transfer",
                     originVm,
-                    originPath,
-                    destVM,
+                    originPath,  
                     destPath,
                     status:"OK"
                 })
@@ -234,9 +259,13 @@ const copyToVM = (req,res) => {
     const destVM = req.destVM
     const destPath = req.destPath
     exec(`vboxmanage guestcontrol ${destVM} copyto ${originPath} ${destPath} --username amirkh --password Amir1377`, (err,stdoutt,stderr) => {
+        if(err){
+            throw err;
+            return;
+        }
         res.status(200).json({
             command:"copyToVM",
-            originPath,
+            originPath,  
             destVM,
             destPath,
             status:"OK"
